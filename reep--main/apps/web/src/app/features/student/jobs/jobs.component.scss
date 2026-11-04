@@ -1,0 +1,283 @@
+/* The jobs board — the handoff's filter row and six-column table. Header, card,
+ * chips, buttons and the match bar are the global reep-v2 classes; the framed
+ * table, its column weights and the ineligible tint are this screen's own. */
+:host {
+  display: block;
+}
+
+/* the design's compact in-row buttons */
+.btn.sm {
+  padding: 6px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.btn[disabled] {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.card-line {
+  color: var(--muted);
+  font-size: 14px;
+}
+.card-line.center {
+  text-align: center;
+}
+
+/* --- filter row: three pill selects --- */
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.filt {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.filt > span {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+.filter-row select.ctrl {
+  padding: 8px 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--hairline-42);
+  background: var(--tint-2);
+  font-family: var(--font);
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.filter-row .clear {
+  margin-bottom: 1px;
+}
+
+/* --- the framed table --- */
+.jobs-frame {
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  overflow: hidden;
+  overflow-x: auto;
+  box-shadow: var(--sh-card);
+  margin-bottom: 16px;
+  background: var(--surface);
+}
+.jobs-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+/* 1.6fr 1.2fr 1fr 1fr 1.2fr 1fr, as the design weights them. */
+.jobs-table th:nth-child(1),
+.jobs-table td:nth-child(1) {
+  width: 23%;
+}
+.jobs-table th:nth-child(2),
+.jobs-table td:nth-child(2) {
+  width: 17%;
+}
+.jobs-table th:nth-child(3),
+.jobs-table td:nth-child(3),
+.jobs-table th:nth-child(4),
+.jobs-table td:nth-child(4),
+.jobs-table th:nth-child(6),
+.jobs-table td:nth-child(6) {
+  width: 14%;
+}
+.jobs-table th:nth-child(5),
+.jobs-table td:nth-child(5) {
+  width: 18%;
+}
+
+.jobs-table thead tr {
+  background: var(--tint-2);
+}
+.jobs-table th {
+  padding: 11px 14px;
+  text-align: left;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--hairline);
+  white-space: nowrap;
+}
+.jobs-table td {
+  padding: 12px 14px;
+  vertical-align: middle;
+  border-bottom: 1px solid rgba(160, 138, 178, 0.22);
+  background: var(--surface);
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.jobs-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+/* Tint plus a named reason: the row reads as ineligible twice over. */
+.jobs-table tr.ineligible td {
+  background: rgba(173, 36, 82, 0.04);
+}
+.col-action {
+  text-align: right;
+}
+
+.role-title {
+  font-size: 14px;
+  font-weight: 800;
+}
+/* The board a job-agent posting came from. Adzuna's terms ask for the words
+   and the link on every advert shown; it stays quiet beside the company. */
+.source-credit {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+  text-decoration: underline;
+}
+/* A company's own feed: where it came from, and no link (Apply opens it). */
+.source-credit--plain {
+  text-decoration: none;
+}
+/* "View JD": a quiet text button under the company, never a second CTA. */
+.jd-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 4px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand-purple);
+  cursor: pointer;
+}
+.jd-toggle:hover {
+  text-decoration: underline;
+}
+/* One glyph, turned over when open: `expand_less` is not in the icon subset,
+   and a glyph missing from it renders as nothing at all. */
+.jd-toggle .icon.open {
+  transform: rotate(180deg);
+}
+.jd-toggle:focus-visible {
+  outline: 2px solid var(--brand-purple);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* The JD sits in a row of its own under its posting. The cell spans every
+   column, so the first column's width rule must not reach it. */
+.jobs-table tr.jd-row td {
+  width: auto;
+  padding-top: 0;
+}
+.jd {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--tint-2);
+}
+.jd-head {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+.jd-text {
+  margin: 6px 0 0;
+  white-space: pre-line;
+  line-height: 1.55;
+}
+.jd-foot {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.loc {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+}
+.loc .icon {
+  font-size: 16px;
+}
+.closes {
+  font-size: 11.5px;
+  color: var(--faint);
+  margin-top: 3px;
+}
+.closes.warn {
+  color: var(--warn);
+  font-weight: 700;
+}
+.closes.risk {
+  color: var(--risk);
+  font-weight: 700;
+}
+
+.match {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.match .match-bar {
+  width: 64px;
+  height: 6px;
+  flex: none;
+  box-shadow: none;
+  background: rgba(58, 31, 82, 0.12);
+}
+.match-val {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-nav);
+  font-variant-numeric: tabular-nums;
+}
+/* A posting that lists no skills has no match to state. */
+.match-none {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--faint);
+}
+/* tint the fill by match band */
+.match-fill.good {
+  background: var(--good);
+}
+.match-fill.warn {
+  background: var(--warn-dot);
+}
+.match-fill.risk {
+  background: var(--risk);
+}
+
+/* The exact missing requirement, in the Status column of an ineligible row. */
+.why {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--risk);
+  line-height: 1.4;
+}
+.why .icon {
+  font-size: 15px;
+  flex: none;
+}
+
+.empty-row td {
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  padding: 18px 14px;
+}
