@@ -282,7 +282,10 @@ const STUDENT_NAVIGATION: readonly NavigationGroup[] = [
   },
   {
     title: 'Programme',
-    items: [{ label: 'Faculty / TPO Log', icon: 'event_note', path: '/student/mentor-log' }],
+    items: [
+      { label: 'Faculty / TPO Log', icon: 'event_note', path: '/student/mentor-log' },
+      { label: 'My leave', icon: 'event_busy', path: '/student/leave' },
+    ],
   },
   {
     title: 'Documents',
@@ -310,8 +313,9 @@ const STUDENT_NAVIGATION: readonly NavigationGroup[] = [
  *
  * LEAVE REQUESTS IS DELIBERATELY NOT FILTERED. That screen is the faculty
  * member's OWN leave request (and the cover they are asked for), which nothing
- * gates and nobody should ever lose; approving leave is the Main Admin's alone
- * since 2026-09-16 and lives on the admin console.
+ * gates and nobody should ever lose; approving FACULTY leave is the Main
+ * Admin's alone since 2026-09-16 and lives on the admin console. A mentor's
+ * mentees' leave is theirs (2026-11-05), on "Student leave requests" below.
  * Upskilling is baseline and always held.
  *
  * THE REEP AGENT HAS NO SIDEBAR ROW ON ANY ROLE (2026-09-16). The owner
@@ -346,6 +350,14 @@ const FACULTY_NAVIGATION: readonly NavigationGroup[] = [
         capability: 'admin.student_records',
       },
       { label: 'Leave Requests', icon: 'event_available', path: '/mentor/leave' },
+      // A mentor decides their mentees' leave (2026-11-05). Filtered on the
+      // same derived key as Mentee Log: no mentees, nothing to decide.
+      {
+        label: 'Student leave requests',
+        icon: 'event_busy',
+        path: '/mentor/student-leave',
+        capability: 'mentor.mentees',
+      },
       {
         label: 'Skill Verifications',
         icon: 'verified',

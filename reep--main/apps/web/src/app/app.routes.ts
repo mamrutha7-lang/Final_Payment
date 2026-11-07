@@ -225,6 +225,22 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/student/fees/my-fees.component').then((m) => m.MyFeesComponent),
       },
+      // My leave (2026-11-05): the student's own requests, and the form that
+      // sends one to their mentor (or the placement office when they have none).
+      {
+        path: 'student/leave',
+        canActivate: [roleGuard('STUDENT')],
+        loadComponent: () =>
+          import('./features/student/leave/my-leave.component').then((m) => m.MyLeaveComponent),
+      },
+      {
+        path: 'student/leave/new',
+        canActivate: [roleGuard('STUDENT')],
+        loadComponent: () =>
+          import('./features/student/leave/request-leave.component').then(
+            (m) => m.RequestLeaveComponent,
+          ),
+      },
       {
         path: 'student/profile',
         canActivate: [roleGuard('STUDENT')],
@@ -299,6 +315,17 @@ export const routes: Routes = [
         canActivate: [roleGuard('MENTOR', 'ADMIN')],
         loadComponent: () =>
           import('./features/mentor/leave/leave.component').then((m) => m.LeaveComponent),
+      },
+      // Student leave requests (2026-11-05): a mentor decides their mentees'
+      // leave. `mentor.mentees` is held by having a mentee; the API refuses
+      // everyone else whatever this guard says.
+      {
+        path: 'mentor/student-leave',
+        canActivate: [roleGuard('MENTOR'), capabilityGuard('mentor.mentees')],
+        loadComponent: () =>
+          import('./features/mentor/student-leave/student-leave.component').then(
+            (m) => m.StudentLeaveComponent,
+          ),
       },
       {
         path: 'mentor/agent',

@@ -270,7 +270,11 @@ def test_only_an_approved_faculty_leave_is_ever_announced(client, make_user, lea
     today = local_today()
 
     rejected = _submit(client, applicant, leave_ids, start=today, end=today)
-    r = client.post(f"{LEAVES}/{rejected}/decision", headers=office.headers, json={"decision": "REJECT"})
+    r = client.post(
+        f"{LEAVES}/{rejected}/decision",
+        headers=office.headers,
+        json={"decision": "REJECT", "note": "Not this week."},
+    )
     assert r.status_code == 200, r.text
     student_leave = _submit(client, student, leave_ids, start=today, end=today)
     _approve(client, office, student_leave)

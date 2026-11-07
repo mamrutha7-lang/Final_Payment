@@ -7,6 +7,7 @@
  */
 
 import { environment } from '../../environments/environment';
+import { apiJson } from './api-json';
 
 export type Quota = 'CET' | 'MANAGEMENT';
 export type FeeHead = 'TUITION' | 'EXAMINATION' | 'LIBRARY_LAB' | 'OTHER';
@@ -63,39 +64,9 @@ export function initials(name: string): string {
   return letters.toUpperCase();
 }
 
-/** The server's sentence for a refusal, or a fallback that names the status.
- *  A 422 from FastAPI carries a LIST of problems, which is joined. */
-async function detailOf(res: Response, fallback: string): Promise<string> {
-  try {
-    const body = await res.json();
-    if (typeof body?.detail === 'string') return body.detail;
-    if (Array.isArray(body?.detail)) {
-      return body.detail
-        .map((d: { msg?: string }) => (d?.msg ?? '').replace(/^Value error, /, ''))
-        .filter(Boolean)
-        .join(' ');
-    }
-  } catch {
-    /* not JSON */
-  }
-  return `${fallback} (${res.status})`;
-}
-
-/** A JSON call to the API. Throws an Error whose message is the screen's sentence. */
-export async function feeApi<T>(path: string, init: RequestInit = {}, fallback = 'Something went wrong'): Promise<T> {
-  let res: Response;
-  try {
-    res = await fetch(`${environment.apiBase}${path}`, {
-      credentials: 'include',
-      ...init,
-      headers: init.body ? { 'Content-Type': 'application/json', ...(init.headers ?? {}) } : init.headers,
-    });
-  } catch {
-    throw new Error('Could not reach the server. Check your connection and try again.');
-  }
-  if (!res.ok) throw new Error(await detailOf(res, fallback));
-  return (await res.json()) as T;
-}
+/** A JSON call to the API. Throws an Error whose message is the screen's sentence.
+ *  The shared helper in core/api-json.ts, under the name the fee screens use. */
+export const feeApi = apiJson;
 
 /** The full URL of a download (a PDF or a CSV), for an `<a href download>`. */
 export function feeDownloadUrl(path: string): string {

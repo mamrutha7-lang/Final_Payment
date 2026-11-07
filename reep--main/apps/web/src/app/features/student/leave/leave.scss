@@ -1,0 +1,156 @@
+/* Local to My leave and Request leave. `.panel` `.card` `.dt-table` `.chip`
+   `.notice` `.btn` `.field` `.dropzone` `.eyebrow` are the design system's
+   globals; nothing here redefines one. */
+
+.notice {
+  margin-bottom: 12px;
+}
+
+/* -- My leave ------------------------------------------------------------ */
+
+.leave-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.fact {
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.table-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.leave-table {
+  width: 100%;
+  min-width: 560px;
+}
+
+.strong {
+  font-weight: 700;
+}
+
+.row-note {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.action-col {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.action-col .btn + .btn {
+  margin-left: 6px;
+}
+
+/* -- Request leave ------------------------------------------------------- */
+
+.request-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 24px;
+}
+
+@media (max-width: 900px) {
+  .request-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.request-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.date-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.6fr);
+  gap: 12px;
+}
+
+@media (max-width: 560px) {
+  .date-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.field textarea {
+  min-height: 160px;
+  resize: vertical;
+}
+
+.req {
+  color: var(--risk);
+}
+
+.optional {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.total-days {
+  font-weight: 700;
+  background: var(--tint-3);
+}
+
+.document {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.document .dropzone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 200px;
+  cursor: pointer;
+}
+
+.document .dropzone:focus-within {
+  outline: 2px solid var(--purple-mid);
+  outline-offset: 2px;
+}
+
+.file-name {
+  font-weight: 700;
+  color: var(--ink);
+  word-break: break-all;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* The real file input: off-screen by GEOMETRY, never `display: none`, so it
+   stays in the focus order (AGENTS.md, "hidden on a file input"). */
+.file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.request-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

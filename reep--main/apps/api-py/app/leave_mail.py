@@ -153,6 +153,8 @@ def _kind_phrase(lr: LeaveRequest) -> str:
         "OOD": "on-official-duty leave",
         "RH": "restricted holiday",
         "LOP": "loss-of-pay leave",
+        # A student's option (2026-11-05), not printed on the paper form.
+        "MEDICAL": "medical leave",
     }.get(lr.leave_kind, "leave")
 
 

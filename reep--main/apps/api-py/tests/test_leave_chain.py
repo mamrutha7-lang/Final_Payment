@@ -8,7 +8,7 @@ The five things this module holds down, and what comes back if it is deleted:
    every staff request on a one-admin deployment at FIRST_APPROVED, and the
    owner's answer was a single decision by the Main Admin. So: the office's
    APPROVE is a sanction, a mentoring colleague is refused the queue and the
-   signature outright, and a row signed once under the old chain is completed
+   signature on a faculty request, and a row signed once under the old chain is completed
    by the office's one decision. Delete these and "a faculty member with a
    mentee may sign leave" comes back through whichever gate is loosened first.
    AND THE OFFICE MAY DELEGATE IT (2026-09-17): a faculty member granted
@@ -274,16 +274,21 @@ def test_the_office_sanctions_with_one_signature_and_nobody_else_can(
         leave_id = _submit(client, applicant.headers)["id"]
         approve = {"decision": "APPROVE", "note": "Sanctioned."}
 
-        # The colleague mentors somebody and is still refused everything.
+        # The colleague mentors somebody and is still refused the office's
+        # queue and a FACULTY request. Since 2026-11-05 a mentor passes the
+        # decision door's first gate (they decide their mentees' leave), so the
+        # refusal is the flattened 404 — the same for a real id and an
+        # invented one, which is what keeps the door from naming ids.
         assert client.get(f"{LEAVES}/pending", headers=colleague_h).status_code == 403
         refused = client.post(f"{LEAVES}/{leave_id}/decision", headers=colleague_h, json=approve)
         invented = client.post(f"{LEAVES}/no-such-leave/decision", headers=colleague_h, json=approve)
-        assert refused.status_code == 403, refused.text
+        assert refused.status_code == 404, refused.text
         assert (invented.status_code, invented.json()) == (refused.status_code, refused.json())
-        # The student's own request in the colleague's group: the same.
-        assert client.post(
-            f"{LEAVES}/{chain['leave_here']}/decision", headers=colleague_h, json=approve
-        ).status_code == 403
+        # The student's request in the colleague's group is the colleague's to
+        # decide now (tests/test_student_leave.py), and the office's queue
+        # leaves it out.
+        office_queue = client.get(f"{LEAVES}/pending", headers=office.headers).json()
+        assert chain["leave_here"] not in {row["id"] for row in office_queue}
 
         # The office sees it and signs ONCE, and once is the sanction.
         pending = client.get(f"{LEAVES}/pending", headers=office.headers)
@@ -479,7 +484,9 @@ def test_the_applicant_withdraws_their_own_request_and_nobody_else_can(
         done = _submit(client, applicant.headers, from_date="2026-11-25", to_date="2026-11-26")["id"]
         ids.append(done)
         assert client.post(
-            f"{LEAVES}/{done}/decision", headers=office.headers, json={"decision": "REJECT"}
+            f"{LEAVES}/{done}/decision",
+            headers=office.headers,
+            json={"decision": "REJECT", "note": "Not this week."},
         ).status_code == 200
         refused = client.post(f"{LEAVES}/{done}/cancel", headers=applicant.headers)
         assert refused.status_code == 409, refused.text

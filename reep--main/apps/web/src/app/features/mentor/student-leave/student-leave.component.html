@@ -1,0 +1,156 @@
+<div class="panel" data-p="mentor-student-leave">
+  <div class="dt-header">
+    <div>
+      <h1 class="dt-title">Student leave requests</h1>
+      <div class="dt-sub">Review leave requests from your mentees</div>
+    </div>
+  </div>
+
+  <div class="seg queue-tabs" role="tablist" aria-label="Leave requests by status">
+    @for (t of tabs; track t.key) {
+      <button
+        type="button"
+        role="tab"
+        [class.active]="tab() === t.key"
+        [attr.aria-selected]="tab() === t.key"
+        (click)="show(t.key)"
+      >
+        {{ t.label }}@if (t.key === 'PENDING' && pendingCount() !== null) { · {{ pendingCount() }} }
+      </button>
+    }
+  </div>
+
+  @if (error(); as problem) {
+    <div class="notice risk" role="alert">
+      <span class="icon" aria-hidden="true">error</span><div>{{ problem }}</div>
+    </div>
+  }
+  @if (notice(); as message) {
+    <div class="notice good" role="status">
+      <span class="icon" aria-hidden="true">check_circle</span><div>{{ message }}</div>
+    </div>
+  }
+
+  <div class="card table-card">
+    <div class="table-scroll">
+      <table class="dt-table queue-table">
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>Leave type</th>
+            <th>Dates</th>
+            <th>Status</th>
+            <th class="action-col">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows(); track row.id) {
+            <tr>
+              <td>
+                <div class="who">
+                  <span class="avatar" aria-hidden="true">{{ initials(row.requester_name) }}</span>
+                  <div>
+                    <div class="name">{{ row.requester_name }}</div>
+                    @if (row.requester_usn) {
+                      <div class="usn">{{ row.requester_usn }}</div>
+                    }
+                  </div>
+                </div>
+              </td>
+              <td>{{ kindLabel(row.leave_kind) }}</td>
+              <td>{{ dateRange(row.from_date, row.to_date) }}</td>
+              <td><span class="chip dot {{ statusTone(row.status) }}">{{ statusLabel(row.status) }}</span></td>
+              <td class="action-col">
+                <button
+                  type="button"
+                  class="btn sm ghost"
+                  [attr.aria-expanded]="open() === row.id"
+                  (click)="toggle(row)"
+                >
+                  {{ open() === row.id ? 'Hide details' : 'Details' }}
+                </button>
+                @if (isPending(row.status)) {
+                  <button
+                    type="button"
+                    class="btn sm danger"
+                    [disabled]="deciding() !== null"
+                    (click)="reject(row)"
+                  >
+                    Reject
+                  </button>
+                  <button
+                    type="button"
+                    class="btn sm primary"
+                    [disabled]="deciding() !== null"
+                    (click)="approve(row)"
+                  >
+                    {{ deciding() === row.id ? 'Saving…' : 'Approve' }}
+                  </button>
+                }
+              </td>
+            </tr>
+            @if (open() === row.id) {
+              <tr class="details-row">
+                <td colspan="5">
+                  <div class="details">
+                    <div>
+                      <div class="eyebrow">Reason</div>
+                      <p class="reason">{{ row.reason }}</p>
+                    </div>
+                    <div>
+                      <div class="eyebrow">Supporting document</div>
+                      @for (f of row.attachments; track f.id) {
+                        <a class="btn sm" [href]="documentUrl(row.id, f.id)" download>
+                          <span class="icon" aria-hidden="true">download</span>{{ f.original_name }}
+                        </a>
+                      } @empty {
+                        <p class="none">None attached</p>
+                      }
+                    </div>
+                  </div>
+                  @if (isPending(row.status)) {
+                    <div class="field note-field">
+                      <label [for]="'leave-note-' + row.id">Note to the student</label>
+                      <textarea
+                        [id]="'leave-note-' + row.id"
+                        rows="2"
+                        maxlength="1000"
+                        placeholder="Required to reject, optional to approve"
+                        [value]="note()"
+                        (input)="note.set($any($event.target).value); noteError.set(null)"
+                        [attr.aria-invalid]="noteError() ? 'true' : null"
+                        [attr.aria-describedby]="noteError() ? 'leave-note-error-' + row.id : null"
+                      ></textarea>
+                      @if (noteError(); as problem) {
+                        <div class="note-error" role="alert" [id]="'leave-note-error-' + row.id">{{ problem }}</div>
+                      }
+                    </div>
+                  } @else if (row.director_note) {
+                    <div class="note-field">
+                      <div class="eyebrow">{{ row.status === 'REJECTED' ? 'Reason given' : 'Note given' }}</div>
+                      <p class="reason">{{ row.director_note }}</p>
+                    </div>
+                  }
+                </td>
+              </tr>
+            }
+          } @empty {
+            <tr>
+              <td colspan="5" class="empty">
+                @if (loading()) {
+                  Loading…
+                } @else if (tab() === 'PENDING') {
+                  No leave requests are waiting for you.
+                } @else if (tab() === 'APPROVED') {
+                  You have not approved any leave yet.
+                } @else {
+                  You have not rejected any leave.
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

@@ -69,6 +69,31 @@ Entry format:
   the address bounced on 2026-10-07 and Amazon SES now delivers nothing to it.
   No code fix needed; the office can lift the block on `/admin/mail`.
 
+## 2026-11-06 — A mentor could reject a student's leave without giving a reason
+
+- **Symptom:** on Student leave requests (`/mentor/student-leave`), Reject
+  was one click with no note, so the student saw "Rejected" on My leave and
+  nothing about why.
+- **Cause:** the mentor screen never sent a `note`, and
+  `POST /api/leaves/{id}/decision` (`decide_leave` in `routers/leave.py`)
+  accepted a rejection without one. The Main Admin's Leave Approvals screen
+  already required remarks, but only in the browser.
+- **Evidence:** found in review of the student-leave branch before release.
+- **Fix:** the API refuses a rejection with a blank note (422) on a request
+  that can still be decided. The mentor screen has a "Note to the student"
+  box on the open row: required to reject, optional to approve. The mentor
+  sees the note they gave on the Approved and Rejected tabs, and the student
+  sees it on My leave as "Reason" or "Note". The note still stays out of the
+  emails.
+- **Where:** `routers/leave.py`, `core/leave.ts`,
+  `features/mentor/student-leave/`, `features/student/leave/my-leave.component.html`,
+  `tests/test_student_leave.py`, and a note added to the rejections in
+  `tests/test_leave_chain.py` and `tests/test_leave_on_leave_today.py`.
+- **Checked by:** `test_the_mentor_rejects_with_a_reason_the_student_reads`
+  and `test_an_approval_note_is_optional_and_reaches_the_student`; the leave
+  test modules and `ng build`.
+- **Status:** on `feature/student-leave`, not yet merged.
+
 ## 2026-10-23 — A company job could be closed while the company still listed it
 
 - **Symptom:** found in review of

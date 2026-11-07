@@ -55,6 +55,7 @@ from .routers import (
     interview_policy,
     leave_alternate,
     leave_attachments,
+    leave_mentees,
     leave_paper,
     leave_policy,
     signature,
@@ -526,6 +527,9 @@ app.include_router(leave_attachments.router, prefix="/api")
 app.include_router(leave_alternate.router, prefix="/api")
 app.include_router(leave_policy.leave_router, prefix="/api")
 app.include_router(leave_policy.admin_router, prefix="/api")
+# Student leave (2026-11-05): the mentor's queue and the student's "who decides
+# my leave". Reads only; the rule is app/student_leave.py's.
+app.include_router(leave_mentees.router, prefix="/api")
 app.include_router(alumni.router, prefix="/api")
 # The Skills & Badge dashboard: the student half shares the /student prefix
 # (badges, growth, leaderboards); badge_verification carries the staff review queue,

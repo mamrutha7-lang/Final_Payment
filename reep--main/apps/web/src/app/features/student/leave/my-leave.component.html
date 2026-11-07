@@ -1,0 +1,94 @@
+<div class="panel" data-p="student-leave">
+  <div class="dt-header">
+    <div>
+      <h1 class="dt-title">My leave</h1>
+      <div class="dt-sub">Your leave requests and their status</div>
+    </div>
+    <a class="btn primary" routerLink="/student/leave/new">
+      <span class="icon" aria-hidden="true">add</span>Request leave
+    </a>
+  </div>
+
+  @if (error(); as problem) {
+    <div class="notice risk" role="alert">
+      <span class="icon" aria-hidden="true">error</span><div>{{ problem }}</div>
+    </div>
+  }
+  @if (notice(); as message) {
+    <div class="notice good" role="status">
+      <span class="icon" aria-hidden="true">check_circle</span><div>{{ message }}</div>
+    </div>
+  }
+
+  @if (me(); as m) {
+    <div class="card leave-facts">
+      <div>
+        <div class="eyebrow">Student</div>
+        <div class="fact">{{ m.name }}</div>
+      </div>
+      <div>
+        <div class="eyebrow">Student ID</div>
+        <div class="fact">{{ m.usn ?? '—' }}</div>
+      </div>
+      <div>
+        <div class="eyebrow">Course</div>
+        <div class="fact">{{ m.course ?? '—' }}</div>
+      </div>
+      <div>
+        <div class="eyebrow">Mentor</div>
+        <div class="fact">{{ m.mentor_name ?? 'Not assigned yet' }}</div>
+      </div>
+    </div>
+  }
+
+  <div class="card table-card">
+    <div class="table-scroll">
+      <table class="dt-table leave-table">
+        <thead>
+          <tr>
+            <th>Leave</th>
+            <th>Dates</th>
+            <th>Status</th>
+            <th class="action-col"><span class="sr-only">Action</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows(); track row.id) {
+            <tr>
+              <td class="strong">{{ kindLabel(row.leave_kind) }}</td>
+              <td>{{ dateRange(row.from_date, row.to_date) }}</td>
+              <td>
+                <span class="chip dot {{ statusTone(row.status) }}">{{ statusLabel(row.status) }}</span>
+                @if ((row.status === 'REJECTED' || row.status === 'APPROVED') && row.director_note) {
+                  <div class="row-note">
+                    {{ row.status === 'REJECTED' ? 'Reason' : 'Note' }}: {{ row.director_note }}
+                  </div>
+                }
+              </td>
+              <td class="action-col">
+                @if (isPending(row.status)) {
+                  @if (confirming() === row.id) {
+                    <button type="button" class="btn sm" [disabled]="busy()" (click)="keep()">Keep</button>
+                    <button type="button" class="btn sm danger" [disabled]="busy()" (click)="withdraw(row)">
+                      {{ busy() ? 'Withdrawing…' : 'Confirm withdraw' }}
+                    </button>
+                  } @else {
+                    <button type="button" class="btn sm" (click)="askWithdraw(row)">
+                      <span class="icon" aria-hidden="true">undo</span>Withdraw
+                    </button>
+                  }
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="4" class="empty">
+                {{ loading() ? 'Loading your leave…' : 'You have not requested any leave yet.' }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,101 @@
+<div class="panel" data-p="student-leave-request">
+  <div class="dt-header">
+    <div>
+      <h1 class="dt-title">Request leave</h1>
+      <div class="dt-sub">{{ subtitle() }}</div>
+    </div>
+  </div>
+
+  @if (error(); as problem) {
+    <div class="notice risk" role="alert">
+      <span class="icon" aria-hidden="true">error</span><div>{{ problem }}</div>
+    </div>
+  }
+
+  <form class="card request-card" (submit)="submit($event)" novalidate>
+    <div class="request-fields">
+      <div class="field">
+        <label for="leave-kind">Leave type <span class="req" aria-hidden="true">*</span></label>
+        <select id="leave-kind" required [value]="kind()" (change)="setKind($event)">
+          <option value="" disabled>Choose the type of leave</option>
+          @for (k of kinds; track k) {
+            <option [value]="k">{{ kindLabel(k) }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="date-row">
+        <div class="field">
+          <label for="leave-from">From date <span class="req" aria-hidden="true">*</span></label>
+          <input
+            id="leave-from"
+            type="date"
+            required
+            [value]="fromDate()"
+            (input)="fromDate.set(value($event))"
+          />
+        </div>
+        <div class="field">
+          <label for="leave-to">To date <span class="req" aria-hidden="true">*</span></label>
+          <input
+            id="leave-to"
+            type="date"
+            required
+            [min]="fromDate()"
+            [value]="toDate()"
+            (input)="toDate.set(value($event))"
+          />
+        </div>
+        <div class="field">
+          <label for="leave-days">Total days</label>
+          <input id="leave-days" class="total-days" type="text" readonly [value]="totalDays() || ''" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="leave-reason">Reason for leave <span class="req" aria-hidden="true">*</span></label>
+        <textarea
+          id="leave-reason"
+          required
+          maxlength="2000"
+          placeholder="Tell your mentor why you need leave"
+          [value]="reason()"
+          (input)="reason.set(value($event))"
+        ></textarea>
+      </div>
+    </div>
+
+    <div class="document field">
+      <label for="leave-document">Supporting document <span class="optional">(optional)</span></label>
+      <label class="dropzone">
+        <input
+          id="leave-document"
+          class="file-input"
+          type="file"
+          accept="application/pdf,image/png,image/jpeg"
+          (change)="pickFile($event)"
+        />
+        <span class="icon" aria-hidden="true">upload_file</span>
+        @if (file(); as f) {
+          <span class="file-name">{{ f.name }}</span>
+          <span class="hint">Choose another file to replace it</span>
+        } @else {
+          <span>Choose a file to upload</span>
+          <span class="hint">PDF, PNG or JPG, up to 10 MB</span>
+        }
+      </label>
+      @if (file()) {
+        <button type="button" class="btn sm ghost" (click)="removeFile()">
+          <span class="icon" aria-hidden="true">close</span>Remove file
+        </button>
+      }
+    </div>
+
+    <div class="request-actions">
+      <a class="btn" routerLink="/student/leave">Cancel</a>
+      <button type="submit" class="btn primary" [disabled]="sending()">
+        <span class="icon" aria-hidden="true">send</span>{{ sending() ? 'Sending…' : sendLabel() }}
+      </button>
+    </div>
+  </form>
+</div>
