@@ -1,0 +1,109 @@
+/* Local to Student leave requests. `.panel` `.card` `.dt-table` `.chip`
+   `.seg` `.notice` `.btn` `.eyebrow` `.empty` are the design system's globals. */
+
+.queue-tabs,
+.notice {
+  margin-bottom: 12px;
+}
+
+.table-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.queue-table {
+  width: 100%;
+  min-width: 720px;
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--tint-2);
+  color: var(--brand-purple);
+}
+
+.name {
+  font-weight: 700;
+}
+
+.usn {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.action-col {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.action-col .btn + .btn {
+  margin-left: 6px;
+}
+
+.details-row td {
+  background: var(--tint-3);
+}
+
+.details {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 18px;
+}
+
+@media (max-width: 700px) {
+  .details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.reason {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+}
+
+.details .btn {
+  margin-top: 6px;
+}
+
+.none {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.note-field {
+  margin-top: 14px;
+}
+
+.note-error {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--risk);
+}
+
+/* The "are you sure?" line under the reason, shown while Confirm reject is up. */
+.confirm-reject {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--risk);
+}

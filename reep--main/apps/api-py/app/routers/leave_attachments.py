@@ -1,5 +1,6 @@
 """The papers that came with a leave request (B10.3).
 
+    POST   /api/leaves/student                       a student's request + its document
     POST   /api/leaves/{id}/attachments              attach one
     GET    /api/leaves/{id}/attachments              list them
     GET    /api/leaves/{id}/attachments/{aid}/file   download one
@@ -79,10 +80,21 @@ the volume.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
-from pydantic import BaseModel
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Response,
+    UploadFile,
+    status,
+)
+from fastapi.encoders import jsonable_encoder
+from pydantic import BaseModel, ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -104,10 +116,24 @@ from ..identity import get_current_session
 from ..models.leave import LeaveRequest
 from ..models.leave_attachment import LeaveAttachment
 from ..models.user import Role, User
+from ..student_leave import (
+    DOCUMENT_REQUIRED_MESSAGE,
+    LAST_DOCUMENT_MESSAGE,
+    document_required,
+)
 # The ONE implementation of "may this account see this leave request". Imported
 # from the module that owns it exactly as routers/leave_paper.py imports it; a
-# second copy here would be the copy that stops tracking the first.
-from .leave import _assert_can_decide
+# second copy here would be the copy that stops tracking the first. The submit
+# helpers come from the same module for the same reason.
+from .leave import (
+    CANCELLABLE,
+    LeaveIn,
+    LeaveOut,
+    _assert_can_decide,
+    _leave_out,
+    announce_submitted,
+    checked_leave_request,
+)
 
 router = APIRouter(prefix="/leaves", tags=["leave-attachments"])
 
@@ -199,6 +225,25 @@ def _attachment_of(db: Session, lr: LeaveRequest, attachment_id: str) -> LeaveAt
     return row
 
 
+def _is_last_required_document(db: Session, lr: LeaveRequest) -> bool:
+    """Would removing one file leave a STUDENT's pending request of a type
+    that needs a document (medical) with none?
+
+    Only while the request is pending: once it is decided, the decision was
+    made on the papers and the document rule has done its job. A staff
+    request is never held to it.
+    """
+    if not document_required(lr.leave_kind) or lr.status not in CANCELLABLE:
+        return False
+    requester = db.get(User, lr.requester_user_id)
+    if requester is None or requester.role != Role.STUDENT:
+        return False
+    count = db.scalar(
+        select(func.count(LeaveAttachment.id)).where(LeaveAttachment.leave_request_id == lr.id)
+    )
+    return (count or 0) <= 1
+
+
 def _uploaders(db: Session, rows: list[LeaveAttachment]) -> dict[str, User]:
     ids = {r.uploaded_by_user_id for r in rows if r.uploaded_by_user_id}
     if not ids:
@@ -252,7 +297,27 @@ def upload_attachment(
     """
     lr = _readable_request(db, session, leave_id)
     user_id = session["userId"]
+    row = _store_attachment(db, lr, user_id, file)
+    try:
+        db.commit()
+    except Exception:
+        document_store_delete(row.stored_name)
+        raise
+    db.refresh(row)
+    return _out(row, uploader=db.get(User, user_id), session=session)
 
+
+def _store_attachment(
+    db: Session, lr: LeaveRequest, user_id: str, file: UploadFile
+) -> LeaveAttachment:
+    """Check, store and record one file on `lr`, and add its row to the
+    session WITHOUT committing. Every refusal is an HTTPException (409, 413 or
+    422) raised before anything is written. The caller commits, and deletes
+    the stored bytes (`row.stored_name`) if that commit fails.
+
+    Shared by `upload_attachment` and `submit_student_leave`, so the two doors
+    accept exactly the same files.
+    """
     # PHASE ONE, BEFORE THE BODY IS READ. The file COUNT is this request's, the
     # byte allowance is this uploader's: two owners, one quota object. See the
     # module docstring and document_store's constants.
@@ -313,9 +378,83 @@ def upload_attachment(
         size_bytes=size,
     )
     db.add(row)
-    db.commit()
-    db.refresh(row)
-    return _out(row, uploader=db.get(User, user_id), session=session)
+    return row
+
+
+@router.post("/student", response_model=LeaveOut, status_code=status.HTTP_201_CREATED)
+def submit_student_leave(
+    background: BackgroundTasks,
+    leave_kind: str = Form(...),
+    from_date: date = Form(...),
+    to_date: date = Form(...),
+    reason: str = Form(...),
+    file: UploadFile | None = File(None),
+    session: dict = Depends(get_current_session),
+    db: Session = Depends(get_db),
+) -> LeaveOut:
+    """A student's leave request and its supporting document, in ONE request
+    (2026-11-11).
+
+    WHY ONE REQUEST: a medical leave must come with its certificate
+    (`student_leave.DOCUMENT_REQUIRED_KINDS`). Sent as two calls, the request
+    was saved before the file arrived, so the server could not insist on it,
+    and a failed upload left a request with no document. Here the file is
+    checked before anything is written, and the request, its attachment and
+    the file's manifest row land in one commit.
+
+    The rules on the request are `routers/leave.py`'s
+    (`checked_leave_request`) and the rules on the file are the attachment
+    endpoint's (`_store_attachment`), so neither door can accept what the
+    other refuses. The document is optional for the other types, as before.
+
+    Sync `def` for `upload_attachment`'s reason: a 10 MB write belongs in the
+    threadpool.
+    """
+    if session.get("role") != Role.STUDENT.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This form is for students. Staff apply for leave on the leave form.",
+        )
+    try:
+        body = LeaveIn(
+            leave_kind=leave_kind,
+            from_date=from_date,
+            to_date=to_date,
+            reason=reason.strip(),
+        )
+    except ValidationError as exc:
+        # The same list `detail` FastAPI gives a JSON body, so the client
+        # reads both the same way.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=jsonable_encoder(exc.errors(include_url=False, include_context=False)),
+        ) from None
+
+    # A browser sends an empty part with no filename when nothing was picked.
+    has_file = file is not None and bool(file.filename)
+    if document_required(body.leave_kind) and not has_file:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=DOCUMENT_REQUIRED_MESSAGE
+        )
+
+    user_id = session["userId"]
+    lr = checked_leave_request(db, session, body)
+    db.add(lr)
+    db.flush()
+    stored_name: str | None = None
+    if has_file:
+        stored_name = _store_attachment(db, lr, user_id, file).stored_name
+    try:
+        db.commit()
+    except Exception:
+        # The bytes are on the volume and the rows are not: remove the bytes,
+        # or they are a student's certificate nothing can ever find.
+        if stored_name:
+            document_store_delete(stored_name)
+        raise
+    db.refresh(lr)
+    announce_submitted(db, lr, background)
+    return _leave_out(lr, db)
 
 
 @router.get("/{leave_id}/attachments/{attachment_id}/file")
@@ -374,6 +513,8 @@ def delete_attachment(
                 "Ask the office if it needs to go."
             ),
         )
+    if _is_last_required_document(db, lr):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=LAST_DOCUMENT_MESSAGE)
     # RELEASED BEFORE THE BYTES GO, NOT AFTER, AND THE ORDER IS THE WHOLE POINT.
     # `release` runs a SELECT against `archived_documents`. Between an
     # irreversible `unlink` and the commit, ANY failure of that query -- a lock

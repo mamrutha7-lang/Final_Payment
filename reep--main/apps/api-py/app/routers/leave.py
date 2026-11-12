@@ -44,6 +44,17 @@ button, and the owner's answer was not a second signer but a single one. So:
     (`SIGNED_AS_MAIN_ADMIN`) and a holder of `admin.leave_approvals`
     (`SIGNED_AS_DELEGATE`), with the same flattened 404 for everybody else.
 
+A STUDENT'S LEAVE IS THEIR MENTOR'S TO DECIDE (2026-11-05, the owner's
+decision). When the applicant is a STUDENT with an active mentor, that mentor
+is the only person who may decide it, read its paper or open its attachments:
+`_assert_can_decide` admits them as `SIGNED_AS_MENTOR` and refuses everybody
+else, the Main Admin and any delegate included, with the same flattened 404.
+The office's queues leave such requests out; the mentor's own queue and the
+student's "who decides my leave" read live in `routers/leave_mentees.py`. A
+student with no active mentor is the office's, as before. The rules
+themselves (the route and what a student may submit) live in
+`app/student_leave.py`; this module only calls them.
+
 RULE 2 ON THE APPLICANT'S SIDE IS UNCHANGED: `/mine`, `POST` and `/cancel` are
 the applicant's own and gate on nothing but the session; `reason` is free
 text and routinely medical, which is why the queues are the office's alone.
@@ -78,11 +89,19 @@ from ..scope_views import SCOPE_HEADER
 from ..models.leave import (
     SIGNED_AS_DELEGATE,
     SIGNED_AS_MAIN_ADMIN,
+    SIGNED_AS_MENTOR,
     LeaveDecision,
     LeaveRequest,
     LeaveStatus,
 )
-from ..models.user import User
+from ..models.user import Role, User
+from ..student_leave import (
+    DOCUMENT_REQUIRED_MESSAGE,
+    assigned_mentor_user_id,
+    document_required,
+    mentor_routed_applicants,
+    student_submit_refusal,
+)
 from .mentor import require_mentor
 
 router = APIRouter(prefix="/leaves", tags=["leaves"])
@@ -93,6 +112,9 @@ router = APIRouter(prefix="/leaves", tags=["leaves"])
 #: `tools/ci/check_capability_enforcement.py` resolves module constants and a
 #: literal repeated at three call sites is three places to mistype it.
 LEAVE_APPROVAL_CAPABILITY = "admin.leave_approvals"
+#: What a mentor holds by having at least one mentee (derived, see
+#: `app/mentor_functions.py`). It opens the mentor's own student-leave queue.
+MENTEES_CAPABILITY = "mentor.mentees"
 
 
 class AltRow(BaseModel):
@@ -112,9 +134,12 @@ class LeaveIn(BaseModel):
     # column that four call sites and a scope-rule docstring refer to, to match
     # a label, would be churn for no gain.
     reason: str = Field(min_length=1, max_length=2000)
-    # Printed options only: the form lists these five and strikes off the rest,
-    # so this is a choice among them and not an open leave-type vocabulary.
-    leave_kind: str | None = Field(default=None, pattern="^(CASUAL|PERMISSION|OOD|RH|LOP)$")
+    # The five options printed on the form, plus MEDICAL, which students choose
+    # (2026-11-05) and the paper does not print, so nothing is struck through
+    # for it. A student is held to `STUDENT_LEAVE_KINDS` in `submit_leave`.
+    leave_kind: str | None = Field(
+        default=None, pattern="^(CASUAL|PERMISSION|OOD|RH|LOP|MEDICAL)$"
+    )
     credit: str | None = Field(default=None, max_length=200)
     alt_name: str | None = Field(default=None, max_length=200)
     alt_rows: list[AltRow] = Field(default_factory=list, max_length=20)
@@ -332,6 +357,23 @@ def _require_leave_approver(db: Session, session: dict) -> None:
     require_capability(db, session, LEAVE_APPROVAL_CAPABILITY)
 
 
+def _require_decider(db: Session, session: dict) -> None:
+    """The gate on `/decision`, before any id is read: the office's approvers
+    as above, OR a faculty member who mentors somebody (2026-11-05), because a
+    student's leave is decided by their mentor.
+
+    Still answered from the session alone, so it says nothing about which ids
+    exist. A mentor let through here meets `_assert_can_decide`, which admits
+    them only to their own mentees' requests and answers every other id —
+    real or invented — with the same 404. A faculty member with no mentees and
+    no grant is refused exactly as before, naming the office's key.
+    """
+    require_mentor(session)
+    if has_capability(db, session, MENTEES_CAPABILITY):
+        return
+    require_capability(db, session, LEAVE_APPROVAL_CAPABILITY)
+
+
 @router.post("", response_model=LeaveOut, status_code=status.HTTP_201_CREATED)
 def submit_leave(
     body: LeaveIn,
@@ -354,7 +396,42 @@ def submit_leave(
     the short version is that a table nobody has filled in must not change what
     the form accepts, and `tests/test_leave_dates.py` submits a deliberately
     overlapping pair to hold that down.
+
+    A STUDENT'S MEDICAL REQUEST IS REFUSED HERE (2026-11-11). It needs its
+    supporting document, and this JSON body has no room for one, so a student
+    sends it through `POST /leaves/student`, which takes the form and the file
+    together. Staff requests are not touched by that rule.
     """
+    if session.get("role") == Role.STUDENT.value and document_required(body.leave_kind):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=DOCUMENT_REQUIRED_MESSAGE
+        )
+    lr = checked_leave_request(db, session, body)
+    db.add(lr)
+    db.commit()
+    db.refresh(lr)
+    announce_submitted(db, lr, background)
+    return _leave_out(lr, db)
+
+
+def checked_leave_request(db: Session, session: dict, body: LeaveIn) -> LeaveRequest:
+    """The request this caller's form describes, built but NOT added to the
+    session, after every refusal has had its say (raised as a 422).
+
+    Shared by `submit_leave` and the student's multipart
+    `leave_attachments.submit_student_leave`, so the two doors apply exactly
+    the same rules.
+    """
+    if session.get("role") == Role.STUDENT.value:
+        refusal = student_submit_refusal(
+            db,
+            user_id=session["userId"],
+            leave_kind=body.leave_kind,
+            from_date=body.from_date,
+            to_date=body.to_date,
+        )
+        if refusal:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=refusal)
     refusal = submit_refusal(
         db,
         user_id=session["userId"],
@@ -364,7 +441,7 @@ def submit_leave(
     )
     if refusal:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=refusal)
-    lr = LeaveRequest(
+    return LeaveRequest(
         requester_user_id=session["userId"],
         from_date=body.from_date,
         to_date=body.to_date,
@@ -379,9 +456,10 @@ def submit_leave(
         # second call that could never arrive.
         signed_at=datetime.now(timezone.utc),
     )
-    db.add(lr)
-    db.commit()
-    db.refresh(lr)
+
+
+def announce_submitted(db: Session, lr: LeaveRequest, background: BackgroundTasks) -> None:
+    """The mails a newly submitted request sends. Call it AFTER the commit."""
     # B10.5, AND IT IS OFF UNLESS `LEAVE_MAIL_ENABLED` IS SET. After the commit,
     # never before: `deliver_once` commits its own MailLog, so calling it first
     # would commit a half-written request, and a mail about a request that has
@@ -393,7 +471,6 @@ def submit_leave(
     # faculty. After the response, in its own session: there can be several
     # approvers, and the applicant's button must not wait on a mail server.
     background.add_task(notify_approvers_in_background, lr.id)
-    return _leave_out(lr, db)
 
 
 @router.get("/mine", response_model=list[LeaveOut])
@@ -484,8 +561,18 @@ def _assert_can_decide(session: dict, lr: LeaveRequest, db: Session) -> str:
     `require_mentor` runs first so a STUDENT or an ALUMNI gets the role gate's
     own 403 — the same answer they get on every staff surface — and `lr` and
     `db` stay in the signature for the four importers.
+
+    A STUDENT'S REQUEST WITH AN ACTIVE MENTOR IS THAT MENTOR'S ALONE
+    (2026-11-05): they are admitted as `SIGNED_AS_MENTOR`, and everybody else —
+    the Main Admin and any delegate included — gets the flattened 404. Checked
+    FIRST, so the office's own branches below never see such a request.
     """
     require_mentor(session)
+    mentor_uid = assigned_mentor_user_id(db, lr.requester_user_id)
+    if mentor_uid is not None:
+        if mentor_uid == session.get("userId"):
+            return SIGNED_AS_MENTOR
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Leave request not found.")
     if session["role"] == "ADMIN":
         return SIGNED_AS_MAIN_ADMIN
     # `has_capability`, not `require_capability`: a refusal here must be the
@@ -526,6 +613,8 @@ def pending_leaves(
         .where(
             LeaveRequest.status.in_([LeaveStatus.SUBMITTED, LeaveStatus.FIRST_APPROVED]),
             LeaveRequest.requester_user_id != uid,
+            # A student with an active mentor is the mentor's (2026-11-05).
+            LeaveRequest.requester_user_id.not_in(mentor_routed_applicants()),
         )
         .order_by(LeaveRequest.created_at)
     )
@@ -595,6 +684,7 @@ def decided_leaves(
         .where(
             LeaveRequest.status.in_(wanted),
             LeaveRequest.requester_user_id != uid,
+            LeaveRequest.requester_user_id.not_in(mentor_routed_applicants()),
         )
         .order_by(
             # `cancelled_at` first and it changes nothing for the other two: it
@@ -641,8 +731,12 @@ def decide_leave(
     first signer's stamp is not rewritten. Whether the first signature was the
     office's own no longer matters: one signature is the rule, and refusing
     the office its own second stroke was the deadlock the rule removed.
+
+    A MENTOR DECIDES THEIR MENTEE'S REQUEST HERE TOO (2026-11-05), through the
+    same one signature, stamped `SIGNED_AS_MENTOR`. `_require_decider` lets a
+    mentor in; `_assert_can_decide` keeps them to their own mentees.
     """
-    _require_leave_approver(db, session)
+    _require_decider(db, session)
     lr = db.get(LeaveRequest, leave_id)
     if lr is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Leave request not found.")
@@ -657,6 +751,18 @@ def decide_leave(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="decision must be APPROVE or REJECT.",
+        )
+    # A REJECTION NEEDS A REASON (2026-11-06). The note is all the applicant
+    # is told about why. Checked only on a request that can still be decided,
+    # so deciding a settled one still gets the 409 below.
+    if (
+        decision == "REJECT"
+        and not (body.note or "").strip()
+        and lr.status in (LeaveStatus.SUBMITTED, LeaveStatus.FIRST_APPROVED)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Give a reason to reject this request. The applicant reads it.",
         )
     now = datetime.now(timezone.utc)
     verdict = LeaveDecision.APPROVED if decision == "APPROVE" else LeaveDecision.REJECTED
